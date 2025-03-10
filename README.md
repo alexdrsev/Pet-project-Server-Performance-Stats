@@ -30,4 +30,3 @@ ___
 
 Here's my Output in my OS:
 
-![[Pasted image 20250310164331.png]]
