@@ -30,6 +30,6 @@ ___
 
 Expected conclusion:
 
-![output.png]
+![](output.png)
 
 
