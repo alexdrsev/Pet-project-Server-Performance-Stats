@@ -1,41 +1,88 @@
-#!bin/bash
+#!/bin/bash
 
-#overall CPU usage
-cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print 100 -$8"%"}')
-
-#Overall memory usage
-free_menory=$(free -m | awk 'NR==2{printf "Free memory: %sMB", $4}')
-used_memory=$(free -m | awk 'NR==2{printf "Used memory: %sMB", $3}')
-mem_info_total=$(free -m | awk 'NR==2{printf "Used: %sMB / %sMB (%.2f%%)", $3, $2, $3*100/$2}')
-
-#Overall disk usage
-disk_free=$(df -h | awk 'NR==3{printf "Available: %s", $4}')
-disk_usage=$(df -h | awk 'NR==3{printf "Used: %s", $3}')
-disk_info=$(df -h | awk 'NR==3(printf "Overall: %s / %s (%s)", $3, $2, $5}')
-
-#Top-5 processes by CPU
-top_5_process_CPU=$(ps -Ao pid,cmd,%cpu --sort=-%cpu | grep -v "[p]s" | head -n6)
-
-#Top-5 processes by using memory
-top_5_memory_processes=$(ps -Ao pid,command,%mеm --sort=-%mem | grep -v "[p]s" | head -n6)
-
-#System information
-version_OS=$(cat /etc/os-release | grep "^PRETTY_NAME=" | cut -d"=" -f2)
-uptime_info=$(uptime -p)
-load_average=$(uptime | awk -F'load average: ' '{print $2}' | awk -F', ' '{print "    LA last 1 minute:", $1, "\n    LA last 5 minutes:", $2, "\n    LA last 15 minutes:",
-$3}')
+# Load average values
+LA1=$(uptime | cut -d' ' -f 12- | awk -F", " '{print $1}')
+LA5=$(uptime | cut -d' ' -f 12- | awk -F", " '{print $2}')
+LA15=$(uptime | cut -d' ' -f 12- | awk -F", " '{print $3}')
 
 
-echo -e "===== Based Server Performance Statistics =====\n"
+count_core=$(nproc)
+warning_threshold=$(echo "scale=2; $count_core * 0.7" | bc)
+critical_threshold=$(echo "scale=2; $count_core * 1.5" | bc)
 
-echo -e "CPU Usage: $cpu_usage\n"
+# Print system status message function
+la_message() {
+if [ "$(echo "$LA1 < $warning_threshold" | bc -l) " -eq 1 ]
+then
+    echo -e "\e[32mThe system works well\e[0m"
+elif [ "$(echo "$LA1 >= $warning_threshold" | bc -l)" -eq 1  ] && [ "$(echo "$LA1 < $count_core" | bc -l)" -eq 1 ]
+then
+    echo -e "\e[33mCaution: the system is close to overloading\e[0m"
+elif [ "$(echo "$LA1 >= $count_core" | bc -l)" -eq 1 ] && [ "$(echo "$LA1 < $critical_threshold" | bc -l)" -eq 1 ]
+then
+    echo -e "\e[33mWarning: all systems cores are loaded\e[0m"
+else
+    echo -e "\e[31mWARNING: The system is overloaded. Perform the following steps:\n\n    1. Look under 'Top-5 processes by CPU usage' below for the most loaded processes"
+    echo "    2. Look at the PIDs of the processes in the 'PID' column and terminate the processes with the command 'sudo kill -15 <PID>'"
+    echo -e "    3. Run the script again and check Load Average values\e[0m"
+fi
+}
+
+#CPU usage in percentage
+cpu_usage=$(top -bn1 | grep "\%Cpu(s):" | awk '{print 100 - $8}')
+
+#Total memory used
+total=$(free -m | awk '/Mem:/ {print $2}')
+used=$(free -m | awk '/Mem:/ {print $3}')
+freem=$(free -m | awk '/Mem:/ {print $4}')
+memory_used=$(echo "scale=2; $used / $total * 100" | bc)
+memory_free=$(echo "scale=2; $freem / $total * 100" | bc)
+
+#Total disk usage
+used_disk=$(df --block-size=G | grep -E "/$" | awk '{print $3}')
+total_disk=$(df --block-size=G | grep -E "/$" | awk '{print $2}')
+free_disk=$(df --block-size=G | grep -E "/$" | awk '{print $4}')
+disk_used=$(echo "scale=2; $used_disk / $total_disk * 100" | bc)
+disk_free=$(echo "scale=2; $free_disk / $total_disk * 100" | bc)
+
+#Version OS
+version=$(cat /etc/os-release | grep "VERSION=" | sed -n -e 's/VERSION=//' -e 's/"//g p')
 
 
-echo -e "Overall memory usage:\n  $free_memory\n  $used_memory\n  $mem_info_total\n"
+echo -e "=====================Server-Performance-Stats=====================\n"
 
-echo -e "Overall disk usage:\n  $disk_free\n  $disk_usage\n  $disk_info\n"
+echo -e "Total CPU usage:  $cpu_usage%\n"
+echo "-------------"
 
-echo -e "Top-5 processes by CPU:\n $top_5_process_CPU\n"
-echo -e "Top-5 processes by using memory:\n $top_5_memory_processes\n"
+echo -e "\nLoad Average on the server:"
+echo "	Last 1 minute: $LA1"
+echo "	Last 5 minutes: $LA5"
+echo -e "	Last 15 minutes: $LA15\n"
 
-echo -e "System Information:\n  Version OS: $version_OS\n  Uptime: $uptime_info\n  Load average:\n$load_average"
+echo -e "The number of cores in the system: $count_core\n"
+la_message
+echo -e "\n-------------"
+
+echo -e "\nTotal memory usage:"
+echo "	Used memory: $used MB  / $total MB ($memory_used%)"
+echo -e "	Free memory: $freem MB / $total MB ($memory_free%)\n"
+echo "-------------"
+
+echo -e "\nTotal disk usage:"
+echo "	Used disk: $used_disk / $total_disk ($disk_used%)"
+echo -e "	Free disk: $free_disk / $total_disk ($disk_free%)\n"
+echo "-------------"
+
+echo -e "\nTop-5 processes by CPU usage:\n"
+top -bn 1 -o %CPU | grep -E "^ +" | head -n 6 | awk '{printf "%-10s %-15s %-10s %-5s\n", $1, $2, $9, $"12"}'
+echo -e "\n-------------"
+
+echo -e "\nTop-5 processes by memory usage:\n"
+top -bn 1 -o %MEM | grep -E "^ +" | head -n 6 | awk '{printf "%-10s %-15s %-10s %-5s\n", $1, $2, $"10", $"12"}'
+echo -e "\n-------------"
+
+echo -e "\nVersion OS: $version"
+echo "Uptime: $(uptime -p)"
+
+echo -e "\n=====================Server-Performance-Stats====================="
+

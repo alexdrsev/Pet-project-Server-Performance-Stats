@@ -2,7 +2,7 @@
 
 ___
 
-A bash script to analyse basic server performance stats. The project from: [https://roadmap.sh/projects/server-stats](https://roadmap.sh/projects/server-stats)
+A bash script to analyse basic server performance stats. The idea for the project wat taken from the website: [https://roadmap.sh/projects/server-stats](https://roadmap.sh/projects/server-stats)
 
 ## Getting Started
 
@@ -24,10 +24,12 @@ ___
 3. **Execute the script**
     
     ```
-    bash server-stats.sh
+    ./server-stats.sh
 	```
 
 
-Here's my Output in my OS:
+Expected conclusion:
 
-![](image.png)
+![output.png]
+
+
